@@ -173,6 +173,18 @@ func TestAPIAddIssueLabelsWithLabelNames(t *testing.T) {
 	// delete labels
 	req = NewRequest(t, "DELETE", urlStr).AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusNoContent)
+
+	// a repo label shadows the org label of the same name, but both can still be added by ID
+	sameNameLabel := &issues_model.Label{RepoID: repo.ID, Name: orgLabel.Name, Color: "#000000"}
+	assert.NoError(t, issues_model.NewLabel(t.Context(), sameNameLabel))
+	req = NewRequestWithJSON(t, "POST", urlStr, &api.IssueLabelsOption{Labels: []any{orgLabel.Name}}).AddTokenAuth(token)
+	apiLabels = DecodeJSON(t, MakeRequest(t, req, http.StatusOK), []*api.Label{})
+	if assert.Len(t, apiLabels, 1) {
+		assert.Equal(t, sameNameLabel.ID, apiLabels[0].ID)
+	}
+	req = NewRequestWithJSON(t, "POST", urlStr, &api.IssueLabelsOption{Labels: []any{sameNameLabel.ID, orgLabel.ID}}).AddTokenAuth(token)
+	apiLabels = DecodeJSON(t, MakeRequest(t, req, http.StatusOK), []*api.Label{})
+	assert.Len(t, apiLabels, 2)
 }
 
 func TestAPIReplaceIssueLabels(t *testing.T) {

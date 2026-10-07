@@ -8,8 +8,10 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"slices"
 
 	issues_model "gitea.dev/models/issues"
+	"gitea.dev/modules/container"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/web"
 	"gitea.dev/services/context"
@@ -364,6 +366,18 @@ func prepareForReplaceOrAdd(ctx *context.APIContext, form api.IssueLabelsOption)
 	if err != nil {
 		ctx.APIErrorInternal(err)
 		return nil, nil, err
+	}
+	if len(labelNames) > 0 {
+		// a repo label shadows the org label of the same name
+		repoLabelNames := make(container.Set[string])
+		for _, label := range labels {
+			if label.RepoID > 0 {
+				repoLabelNames.Add(label.Name)
+			}
+		}
+		labels = slices.DeleteFunc(labels, func(label *issues_model.Label) bool {
+			return label.OrgID > 0 && repoLabelNames.Contains(label.Name)
+		})
 	}
 
 	return issue, labels, err
